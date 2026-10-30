@@ -1,0 +1,1574 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zsh Prompt Studio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+/* Layout: a workbench. Live terminal on top, three tool columns (segments / inspector / style), generated zsh below. */
+@font-face {
+  font-family: "PS Nerd Symbols";
+  src: url(data:font/woff2;base64,/*NERD_FONT_DATA*/) format("woff2");
+  unicode-range: U+E000-F8FF;
+  font-display: block;
+}
+:root {
+  --ground: #e8ebf0;
+  --panel: #f6f7f9;
+  --panel-2: #eceff4;
+  --line: #d2d7df;
+  --ink: #1a1d25;
+  --ink-2: #5a6170;
+  --accent: #8a5a12;
+  --accent-soft: #f1e2c8;
+  --danger: #b4233a;
+  --shadow: 0 1px 0 rgba(20, 24, 33, .04), 0 12px 32px -18px rgba(20, 24, 33, .35);
+  --f-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --f-mono: "PS Nerd Symbols", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #121419; --panel: #191c23; --panel-2: #20242d; --line: #2b303b;
+    --ink: #e8e5dd; --ink-2: #979cab; --accent: #e7b36a; --accent-soft: #3a2f1f;
+    --danger: #ff7a8a; --shadow: 0 1px 0 rgba(0,0,0,.3), 0 18px 40px -20px rgba(0,0,0,.8);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #121419; --panel: #191c23; --panel-2: #20242d; --line: #2b303b;
+  --ink: #e8e5dd; --ink-2: #979cab; --accent: #e7b36a; --accent-soft: #3a2f1f;
+  --danger: #ff7a8a; --shadow: 0 1px 0 rgba(0,0,0,.3), 0 18px 40px -20px rgba(0,0,0,.8);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--ground); color: var(--ink);
+  font: 14px/1.5 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.wrap > * { min-width: 0; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+h2 { font-size: 15px; font-weight: 700; letter-spacing: .01em; }
+.eyebrow { font: 600 11px/1 var(--f-body); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, kbd { font-family: var(--f-mono); font-size: .92em; }
+
+/* ── masthead ── */
+.mast { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; }
+.mast h1 { font-size: clamp(28px, 4vw, 44px); font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+.mast h1 .pct { color: var(--accent); }
+.mast p { margin: 6px 0 0; color: var(--ink-2); max-width: 62ch; }
+.mast-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.btn {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 8px;
+  padding: 7px 12px; font-weight: 500; display: inline-flex; gap: 6px; align-items: center;
+}
+.btn:hover { border-color: var(--ink-2); }
+.btn.primary { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.btn.small { padding: 4px 9px; font-size: 12.5px; }
+
+/* ── presets strip ── */
+.presets { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 1fr); gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.preset {
+  text-align: left; border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px;
+  background: var(--panel); min-width: 0;
+}
+.preset:hover { border-color: var(--ink-2); }
+.preset[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.preset .mini { border-radius: 6px; padding: 8px 8px; font-size: 10.5px; overflow: hidden; }
+.preset .pname { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; font-size: 13px; }
+.preset .pname span:last-child { color: var(--ink-2); font-weight: 400; font-size: 12px; }
+
+/* ── terminal ── */
+.term-shell { border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--line); }
+.term-bar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; font: 12px var(--f-mono); }
+.term-bar .dots { display: flex; gap: 6px; }
+.term-bar .dots i { width: 11px; height: 11px; border-radius: 50%; display: block; background: currentColor; opacity: .28; }
+.term-bar .ttl { flex: 1; text-align: center; opacity: .6; }
+.term-scroll { overflow-x: auto; }
+.term { --lh: 1.55em; font: 15px/var(--lh) var(--f-mono); padding: 14px 16px 18px; min-width: 720px; }
+.tl { display: flex; height: var(--lh); white-space: pre; align-items: stretch; }
+.tl > span { display: inline-flex; align-items: center; }
+.tl svg { width: 1ch; height: var(--lh); display: block; flex: none; }
+.tl .grow { flex: 1; overflow: hidden; }
+.tl .fill { flex: 1; overflow: hidden; white-space: pre; }
+.tl .out { opacity: .72; }
+.cursor { width: 1ch; height: 1.15em; align-self: center; animation: blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
+
+.scenario { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--panel); }
+.scenario .eyebrow { margin-right: 4px; }
+.chip {
+  border: 1px solid var(--line); background: var(--panel-2); border-radius: 999px; padding: 3px 10px; font-size: 12.5px;
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.seg-ctl { display: inline-flex; justify-self: start; width: max-content; max-width: 100%; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.seg-ctl button { border: 0; background: var(--panel-2); padding: 3px 10px; font-size: 12.5px; }
+.seg-ctl button + button { border-left: 1px solid var(--line); }
+.seg-ctl button[aria-pressed="true"] { background: var(--ink); color: var(--ground); }
+
+/* ── workbench ── */
+.bench { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1080px) { .bench { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .bench .col-style { grid-column: 1 / -1; } }
+@media (max-width: 700px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 14px; min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.panel-head small { color: var(--ink-2); }
+.group { display: grid; gap: 8px; }
+.group + .group { border-top: 1px dashed var(--line); padding-top: 12px; }
+
+.seglist { display: grid; gap: 4px; min-height: 42px; padding: 4px; border-radius: 8px; background: var(--panel-2); border: 1px dashed transparent; }
+.seglist.dragover { border-color: var(--accent); }
+.seglist .empty { color: var(--ink-2); font-size: 12.5px; padding: 8px; }
+.segrow {
+  display: grid; grid-template-columns: 14px auto minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 5px 6px 5px 4px; cursor: pointer;
+}
+.segrow[aria-selected="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.segrow.dragging { opacity: .4; }
+.segrow.drop-before { box-shadow: 0 -2px 0 var(--accent); }
+.handle { cursor: grab; color: var(--ink-2); font-size: 12px; line-height: 1; user-select: none; text-align: center; }
+.swatch { font: 12px/22px var(--f-mono); padding: 0 7px; border-radius: 5px; white-space: pre; }
+.segrow .nm { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.segrow .nm small { color: var(--ink-2); font-weight: 400; margin-left: 4px; }
+.row-actions { display: flex; gap: 2px; }
+.icon-btn { border: 0; background: transparent; width: 26px; height: 26px; border-radius: 6px; color: var(--ink-2); font-size: 13px; }
+.icon-btn:hover { background: var(--panel-2); color: var(--ink); }
+
+.library { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+.lib-btn { text-align: left; border: 1px solid var(--line); background: var(--panel-2); border-radius: 7px; padding: 6px 8px; display: grid; gap: 1px; }
+.lib-btn:hover { border-color: var(--ink-2); }
+.lib-btn b { font-weight: 500; font-size: 13px; display: flex; gap: 6px; align-items: center; }
+.lib-btn b i { font: normal 13px var(--f-mono); color: var(--accent); width: 1.2em; }
+.lib-btn span { font-size: 11.5px; color: var(--ink-2); }
+
+.field { display: grid; grid-template-columns: minmax(0, 118px) minmax(0, 1fr); gap: 10px; align-items: center; min-height: 30px; }
+.field > label, .field > .lbl { color: var(--ink-2); font-size: 13px; }
+.field input[type="text"], .field input[type="number"], .field select {
+  width: 100%; border: 1px solid var(--line); background: var(--panel-2); border-radius: 6px; padding: 5px 8px;
+}
+.field input[type="number"] { max-width: 90px; }
+.field input.mono { font-family: var(--f-mono); }
+.colors { display: flex; gap: 10px; flex-wrap: wrap; }
+.color { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
+.color input[type="color"] { width: 30px; height: 26px; border: 1px solid var(--line); border-radius: 6px; padding: 2px; background: var(--panel-2); }
+.toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+.hint { font-size: 12.5px; color: var(--ink-2); margin: 0; }
+.tagline { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.shapes { display: flex; flex-wrap: wrap; gap: 6px; }
+.shape-btn { border: 1px solid var(--line); background: var(--panel-2); border-radius: 7px; padding: 4px 2px; display: grid; justify-items: center; gap: 3px; width: 52px; font-size: 10.5px; color: var(--ink-2); }
+.shape-btn[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); box-shadow: 0 0 0 1px var(--accent); }
+.shape-btn svg { width: 40px; height: 18px; }
+
+.palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 6px; }
+.pal-btn { border: 1px solid var(--line); background: var(--panel-2); border-radius: 7px; padding: 6px; display: grid; gap: 5px; text-align: left; font-size: 12px; }
+.pal-btn:hover { border-color: var(--ink-2); }
+.pal-sw { display: flex; height: 14px; border-radius: 4px; overflow: hidden; }
+.pal-sw i { flex: 1; }
+
+.icon-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 3px; max-height: 172px; overflow: auto; padding: 4px; background: var(--panel-2); border-radius: 8px; border: 1px solid var(--line); }
+.icon-picker button { border: 1px solid transparent; background: transparent; border-radius: 6px; height: 32px; font: 16px var(--f-mono); }
+.icon-picker button:hover { background: var(--panel); border-color: var(--line); }
+.icon-picker button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+
+/* ── code ── */
+.code-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+@media (max-width: 960px) { .code-wrap { grid-template-columns: minmax(0, 1fr); } }
+.code { background: #0f1117; color: #d6d9e0; border-radius: 12px; border: 1px solid var(--line); overflow: hidden; min-width: 0; }
+.code-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px 8px 14px; border-bottom: 1px solid #23262f; font: 12px var(--f-mono); color: #8b90a0; }
+.code pre { margin: 0; padding: 14px; overflow: auto; max-height: 560px; font: 12.5px/1.6 var(--f-mono); tab-size: 2; }
+.code .btn { background: #1b1e27; border-color: #2c3040; color: #e6e3da; }
+.k { color: #c792ea; } .s { color: #c3e88d; } .c { color: #6b7389; font-style: italic; } .v { color: #82aaff; } .f { color: #ffcb6b; }
+.steps { display: grid; gap: 12px; }
+.steps ol { margin: 0; padding-left: 20px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.steps pre { margin: 6px 0 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; font: 12px/1.5 var(--f-mono); overflow-x: auto; white-space: pre; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--ground); padding: 8px 14px; border-radius: 8px; font-weight: 500; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.show { opacity: 1; }
+textarea { width: 100%; min-height: 90px; font: 12px var(--f-mono); border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--ink); padding: 8px; }
+
+/* ── field notes ── */
+.notes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.note { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 6px; align-content: start; }
+.note h3 { font-size: 16px; font-weight: 700; }
+.note p { margin: 0; color: var(--ink-2); font-size: 13.5px; }
+.note .took { color: var(--ink); font-size: 13px; }
+.note .took b { color: var(--accent); font-weight: 600; }
+.note a { color: var(--accent); font-size: 12.5px; }
+.section-title { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.section-title h2 { font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
+.section-title p { margin: 0; color: var(--ink-2); }
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <div>
+      <div class="eyebrow">PROMPT · RPROMPT · precmd</div>
+      <h1>Zsh Prompt Studio<span class="pct">%</span></h1>
+      <p>Arrange segments, pick shapes and colors, and watch the terminal update. The studio writes a single self-contained zsh file: no framework, one git call per prompt.</p>
+    </div>
+    <div class="mast-actions">
+      <button class="btn" id="btn-share" type="button">Copy design</button>
+      <button class="btn" id="btn-load" type="button">Load design</button>
+      <button class="btn primary" id="btn-copy-top" type="button">Copy .zsh</button>
+    </div>
+  </header>
+
+  <div id="load-box" hidden class="panel">
+    <div class="panel-head"><h2>Load a design</h2><small>Paste JSON from “Copy design”.</small></div>
+    <textarea id="load-text" aria-label="Design JSON"></textarea>
+    <div><button class="btn small" id="load-apply" type="button">Load</button> <span class="hint" id="load-err"></span></div>
+  </div>
+
+  <section aria-label="Starting points">
+    <div class="presets" id="presets"></div>
+  </section>
+
+  <section class="term-shell" aria-label="Live preview">
+    <div class="term-bar" id="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="ttl" id="term-title">zsh</span><span style="width:45px"></span></div>
+    <div class="term-scroll"><div class="term" id="term"></div></div>
+    <div class="scenario" id="scenario"></div>
+  </section>
+
+  <section class="bench">
+    <div class="panel col-segs">
+      <div class="panel-head"><h2>Segments</h2><small>Drag to reorder or move sides</small></div>
+      <div class="group">
+        <div class="eyebrow">Left · PROMPT</div>
+        <div class="seglist" id="list-left" data-side="left"></div>
+      </div>
+      <div class="group">
+        <div class="eyebrow">Right · RPROMPT</div>
+        <div class="seglist" id="list-right" data-side="right"></div>
+      </div>
+      <div class="group">
+        <div class="panel-head"><div class="eyebrow">Add segment</div><small id="add-target"></small></div>
+        <div class="library" id="library"></div>
+      </div>
+    </div>
+
+    <div class="panel col-insp" id="inspector"></div>
+
+    <div class="panel col-style" id="style"></div>
+  </section>
+
+  <section class="code-wrap" aria-label="Generated zsh">
+    <div class="code">
+      <div class="code-head"><span id="code-name">~/.config/zsh/prompt.zsh</span><button class="btn small" id="btn-copy" type="button">Copy</button></div>
+      <pre id="code"></pre>
+    </div>
+    <div class="panel steps">
+      <h2>Install</h2>
+      <ol>
+        <li>Install a Nerd Font and set it as your terminal font.
+          <pre>brew install --cask font-jetbrains-mono-nerd-font</pre></li>
+        <li>Press <b>Copy .zsh</b>, then save the clipboard:
+          <pre>mkdir -p ~/.config/zsh && pbpaste > ~/.config/zsh/prompt.zsh</pre></li>
+        <li>Load it from your zshrc, after any framework:
+          <pre>echo 'source ~/.config/zsh/prompt.zsh' >> ~/.zshrc</pre></li>
+        <li>Open a new tab, or run <code>exec zsh</code>.</li>
+      </ol>
+      <p class="hint">Using Oh My Zsh? Set <code>ZSH_THEME=""</code> so it doesn't fight this prompt. Using Powerlevel10k's instant prompt? Remove that block from your zshrc first.</p>
+    </div>
+  </section>
+
+  <section class="group" aria-label="Field notes">
+    <div class="section-title"><h2>Field notes</h2><p>What popular prompts do, and what this studio borrowed.</p></div>
+    <div class="notes">
+      <article class="note">
+        <div class="eyebrow">zsh theme</div><h3>Powerlevel10k</h3>
+        <p>A configuration wizard (<code>p10k configure</code>) builds two-line “rainbow” prompts with a frame (╭─ ╰─) and a filler line that pushes right segments to the top row. Git status comes from a background daemon, so big repos stay fast. Also popularised the transient prompt.</p>
+        <p class="took"><b>Borrowed:</b> frame, filler, right segments on the top line, transient prompt, state-colored git segment.</p>
+        <a href="https://github.com/romkatv/powerlevel10k" target="_blank" rel="noopener">github.com/romkatv/powerlevel10k</a>
+      </article>
+      <article class="note">
+        <div class="eyebrow">cross-shell, Rust</div><h3>Starship</h3>
+        <p>Configured in TOML, with a preset gallery: Pastel Powerline, Tokyo Night, Gruvbox Rainbow, Catppuccin Powerline. The pastel look pairs a rounded leading cap with sharp arrows between segments.</p>
+        <p class="took"><b>Borrowed:</b> separate shapes for edge caps and separators, palette-driven recoloring.</p>
+        <a href="https://starship.rs/presets/" target="_blank" rel="noopener">starship.rs/presets</a>
+      </article>
+      <article class="note">
+        <div class="eyebrow">minimal</div><h3>Pure</h3>
+        <p>Two lines, no backgrounds. Path, then branch with a dirty marker and ⇡⇣ arrows, then execution time when a command takes longer than 5 s. The ❯ character turns red when the last command failed.</p>
+        <p class="took"><b>Borrowed:</b> Plain mode, exit-status prompt character, duration threshold.</p>
+        <a href="https://github.com/sindresorhus/pure" target="_blank" rel="noopener">github.com/sindresorhus/pure</a>
+      </article>
+      <article class="note">
+        <div class="eyebrow">JSON themes</div><h3>Oh My Posh</h3>
+        <p>Segments come in powerline, plain and “diamond” styles: a diamond segment has its own leading and trailing glyphs, which makes floating capsules.</p>
+        <p class="took"><b>Borrowed:</b> Capsules mode.</p>
+        <a href="https://ohmyposh.dev/docs/configuration/segment" target="_blank" rel="noopener">ohmyposh.dev/docs</a>
+      </article>
+      <article class="note">
+        <div class="eyebrow">git internals</div><h3>vcs_info vs. porcelain v2</h3>
+        <p>zsh's built-in <code>vcs_info</code> needs hooks and extra git calls for untracked files and ahead/behind counts. <code>git status --porcelain=v2 --branch</code> returns branch, upstream distance and every changed file in one call.</p>
+        <p class="took"><b>Borrowed:</b> the generated git segment parses porcelain v2 in pure zsh.</p>
+        <a href="https://git-scm.com/docs/git-status#_porcelain_format_version_2" target="_blank" rel="noopener">git-scm.com/docs/git-status</a>
+      </article>
+      <article class="note">
+        <div class="eyebrow">the original</div><h3>powerline-shell</h3>
+        <p>The Python generator that made arrow segments common. It re-runs Python for every prompt, which is slower than doing the work in zsh.</p>
+        <p class="took"><b>Borrowed:</b> segments hide themselves when they have nothing to say, so separators always line up.</p>
+        <a href="https://github.com/b-ryan/powerline-shell" target="_blank" rel="noopener">github.com/b-ryan/powerline-shell</a>
+      </article>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- ═══════════════ zsh templates ═══════════════
+     Lines "#@if flag" / "#@if !flag" … "#@endif" are kept or dropped;
+     @@NAME@@ is replaced. Everything else is emitted as written. -->
+<script type="text/x-zsh" id="z-core">
+# ──────────────────────────────────────────────────────────────
+#  @@TITLE@@
+#  Made with Zsh Prompt Studio · @@DATE@@
+#
+#  Needs zsh 5.3+ and a Nerd Font as your terminal font.
+#  Save as ~/.config/zsh/prompt.zsh, then add to ~/.zshrc
+#  (after any framework or theme is loaded):
+#      source ~/.config/zsh/prompt.zsh
+# ──────────────────────────────────────────────────────────────
+
+zmodload zsh/datetime zsh/parameter
+autoload -Uz add-zsh-hook
+setopt prompt_percent
+ZLE_RPROMPT_INDENT=0
+#@if venv
+export VIRTUAL_ENV_DISABLE_PROMPT=1
+#@endif
+
+# Segment order. Each name maps to a _ps_seg_<name> function below.
+typeset -ga _ps_left=(@@LEFT@@)
+typeset -ga _ps_right=(@@RIGHT@@)
+
+# Colors (@@COLORMODE@@). "alt" is used for warning states:
+# a dirty repo, a failed command, a root shell.
+typeset -gA _ps_bg=(@@BG@@)
+typeset -gA _ps_fg=(@@FG@@)
+typeset -gA _ps_alt=(@@ALT@@)
+typeset -gA _ps_afg=(@@AFG@@)
+
+# Shape: powerline | pills | plain
+typeset -g _ps_mode=@@MODE@@
+typeset -g _ps_lo=@@LO@@ _ps_ls=@@LS@@ _ps_lc=@@LC@@   # left:  open, separator, close
+typeset -g _ps_ro=@@RO@@ _ps_rs=@@RS@@ _ps_rc=@@RC@@   # right: open, separator, close
+typeset -g _ps_po=@@PO@@ _ps_pc=@@PC@@                 # capsule caps
+typeset -g _ps_div=@@DIV@@ _ps_muted='@@MUTED@@'
+typeset -g _ps_b=@@BOLD_ON@@ _ps_ub=@@BOLD_OFF@@
+
+typeset -g _ps_char=@@CHAR@@ _ps_ok='@@OK@@' _ps_err='@@ERR@@'
+typeset -g _ps_frame='@@FRAME@@' _ps_fill=@@FILL@@
+typeset -g _ps_f1=@@F1@@ _ps_f2=@@F2@@ _ps_f1r=@@F1R@@ _ps_f2r=@@F2R@@
+
+typeset -gi _ps_exit=0 _ps_count=0
+typeset -gF _ps_elapsed=0
+typeset -g  _ps_t0= _ps_L= _ps_R= _ps_tprompt=
+
+# Escape text from the outside world (branch names, env names) so the
+# prompt shows it literally.
+_ps_esc() {
+  REPLY=${1//\%/%%}
+  [[ -o prompt_subst ]] && REPLY=${${${REPLY//\\/\\\\}//\$/\\\$}//\`/\\\`}
+}
+
+# ── segments ──────────────────────────────────────────────────
+# Each sets REPLY to its text (leave it empty to hide the segment)
+# and may set REPLY_BG / REPLY_FG to switch to its alt colors.
+
+@@SEGMENTS@@
+
+# ── rendering ─────────────────────────────────────────────────
+# Usage: _ps_render left|right <segment>...   Result in REPLY.
+_ps_render() {
+  local side=$1; shift
+  local out= prev= seg bg fg REPLY_BG REPLY_FG
+  for seg; do
+    REPLY= REPLY_BG= REPLY_FG=
+    _ps_seg_$seg
+    [[ -n $REPLY ]] || continue
+    bg=${REPLY_BG:-$_ps_bg[$seg]}
+    fg=${REPLY_FG:-$_ps_fg[$seg]}
+    case $_ps_mode in
+      powerline)
+        if [[ -z $prev ]]; then
+          if [[ $side == left ]]; then out+="%k%F{$bg}$_ps_lo"; else out+="%k%F{$bg}$_ps_ro"; fi
+        elif [[ $side == left ]]; then
+          out+="%K{$bg}%F{$prev}$_ps_ls"
+        else
+          out+="%K{$prev}%F{$bg}$_ps_rs"
+        fi
+        out+="%K{$bg}%F{$fg}$_ps_b $REPLY $_ps_ub"
+        ;;
+      pills)
+        [[ -n $prev ]] && out+=' '
+        out+="%k%F{$bg}$_ps_po%K{$bg}%F{$fg}$_ps_b $REPLY $_ps_ub%k%F{$bg}$_ps_pc%f"
+        ;;
+      *)
+        [[ -n $prev ]] && out+="%F{$_ps_muted}$_ps_div%f"
+        out+="%F{$bg}$_ps_b$REPLY$_ps_ub%f"
+        ;;
+    esac
+    prev=$bg
+  done
+  if [[ -n $prev && $_ps_mode == powerline ]]; then
+    if [[ $side == left ]]; then out+="%k%F{$prev}$_ps_lc"; else out+="%k%F{$prev}$_ps_rc"; fi
+  fi
+  [[ -n $out ]] && out+='%k%f'
+  REPLY=$out
+}
+
+_ps_layout() {
+  local c=$_ps_ok
+  (( _ps_exit )) && c=$_ps_err
+#@if charOn
+  local char="%F{$c}$_ps_char%f "
+#@endif
+#@if !charOn
+  local char=
+#@endif
+#@if tdir
+  _ps_tprompt="%F{@@TDIRC@@}%~%f %F{$c}$_ps_char%f "
+#@endif
+#@if !tdir
+  _ps_tprompt="%F{$c}$_ps_char%f "
+#@endif
+#@if oneline
+  PROMPT="$_ps_L${_ps_L:+ }$char"
+  RPROMPT=$_ps_R
+#@endif
+#@if rlast
+  PROMPT="$_ps_f1$_ps_L"$'\n'"$_ps_f2$char"
+  RPROMPT=$_ps_R
+#@endif
+#@if rfirst
+  # Right segments share the top line: pad the gap with the filler.
+  # Width = the expanded prompt with its color escape codes removed.
+  setopt local_options extended_glob
+  local top="$_ps_f1$_ps_L" right="$_ps_R$_ps_f1r"
+  local tw=${(%)top} rw=${(%)right}
+  tw=${tw//$'\e'\[[0-9;]##m/} rw=${rw//$'\e'\[[0-9;]##m/}
+  local -i n=$(( COLUMNS - ${(m)#tw} - ${(m)#rw} - 1 ))
+  (( n > 0 )) && top+="%F{$_ps_frame}${(pl:$n::$_ps_fill:)}%f$right"
+  PROMPT="$top"$'\n'"$_ps_f2$char"
+  RPROMPT=$_ps_f2r
+#@endif
+}
+
+_ps_preexec() { _ps_t0=$EPOCHREALTIME }
+
+_ps_precmd() {
+  _ps_exit=$?
+  if [[ -n $_ps_t0 ]]; then
+    (( _ps_elapsed = EPOCHREALTIME - _ps_t0 ))
+    _ps_t0=
+  else
+    _ps_elapsed=0
+  fi
+#@if blank
+  (( _ps_count++ )) && print
+#@endif
+  _ps_render left "${_ps_left[@]}";   _ps_L=$REPLY
+  _ps_render right "${_ps_right[@]}"; _ps_R=$REPLY
+  _ps_layout
+}
+
+add-zsh-hook preexec _ps_preexec
+add-zsh-hook precmd _ps_precmd
+#@if rfirst
+
+# Re-pad the top line when the window is resized.
+TRAPWINCH() { _ps_layout; zle && zle .reset-prompt }
+#@endif
+#@if transient
+
+# Transient prompt: once you press Enter, the full prompt above the
+# command collapses to a short one, keeping scrollback tidy.
+_ps_line_init() {
+  [[ $CONTEXT == start ]] || return 0
+  while true; do
+    zle .recursive-edit
+    local -i ret=$?
+    [[ $ret == 0 && $KEYS == $'\4' ]] || break
+    [[ -o ignore_eof ]] || exit 0
+  done
+  local saved_prompt=$PROMPT saved_rprompt=$RPROMPT
+  PROMPT=$_ps_tprompt RPROMPT=
+  zle .reset-prompt
+  PROMPT=$saved_prompt RPROMPT=$saved_rprompt
+  if (( ret )); then zle .send-break; else zle .accept-line; fi
+  return ret
+}
+zle -N zle-line-init _ps_line_init
+#@endif
+</script>
+
+<script type="text/x-zsh" id="z-os">
+_ps_seg_@@KEY@@() {
+  case $OSTYPE in
+    darwin*) REPLY=@@MAC@@ ;;
+    linux*)  REPLY=@@LINUX@@ ;;
+    *)       REPLY=@@OTHER@@ ;;
+  esac
+}
+</script>
+
+<script type="text/x-zsh" id="z-context">
+_ps_seg_@@KEY@@() {
+#@if sshOnly
+  [[ -n $SSH_CONNECTION || -n $SSH_TTY ]] || (( EUID == 0 )) || return
+#@endif
+  local i=@@ICON@@
+  REPLY="$i%n@@HOST@@"
+  (( EUID == 0 )) && REPLY_BG=$_ps_alt[@@KEY@@] REPLY_FG=$_ps_afg[@@KEY@@]
+}
+</script>
+
+<script type="text/x-zsh" id="z-dir">
+_ps_seg_@@KEY@@() {
+  local i=@@ICON@@
+#@if homeIcon
+  [[ $PWD == $HOME || $PWD == $HOME/* ]] && i=@@HOMEICON@@
+#@endif
+  REPLY="$i@@PATH@@"
+#@if lock
+  [[ -w $PWD ]] || REPLY+=" "@@LOCK@@
+#@endif
+}
+</script>
+
+<script type="text/x-zsh" id="z-git">
+_ps_seg_@@KEY@@() {
+  local -a lines
+  lines=(${(f)"$(GIT_OPTIONAL_LOCKS=0 command git status --porcelain=v2 --branch 2>/dev/null)"})
+  (( $#lines )) || return
+  local line head= oid= xy
+  local -i ahead=0 behind=0 staged=0 unstaged=0 untracked=0 conflicts=0
+  for line in $lines; do
+    case $line in
+      ('# branch.head '*) head=${line#'# branch.head '} ;;
+      ('# branch.oid '*)  oid=${line#'# branch.oid '} ;;
+      ('# branch.ab '*)   line=${line#'# branch.ab '}; ahead=${${line%% *}#+}; behind=${${line##* }#-} ;;
+      ([12]' '*)          xy=${line[3,4]}
+                          [[ $xy[1] != . ]] && (( ++staged ))
+                          [[ $xy[2] != . ]] && (( ++unstaged )) ;;
+      ('u '*)             (( ++conflicts )) ;;
+      ('? '*)             (( ++untracked )) ;;
+    esac
+  done
+  local ref=$head
+  [[ $head == '(detached)' ]] && ref="@${oid[1,7]}"
+  _ps_esc "$ref"; ref=$REPLY
+@@SYMS@@
+  local i=@@ICON@@ s=
+#@if action
+  local gd act=
+  gd=$(command git rev-parse --git-dir 2>/dev/null)
+  if [[ -d $gd/rebase-merge || -d $gd/rebase-apply ]]; then act=rebase
+  elif [[ -f $gd/MERGE_HEAD ]]; then act=merge
+  elif [[ -f $gd/CHERRY_PICK_HEAD ]]; then act=cherry-pick
+  elif [[ -f $gd/BISECT_LOG ]]; then act=bisect
+  fi
+  [[ -n $act ]] && ref+="|$act"
+#@endif
+#@if aheadBehind
+  (( ahead ))     && s+=" $g_ahead$ahead"
+  (( behind ))    && s+=" $g_behind$behind"
+#@endif
+#@if counts
+  (( conflicts )) && s+=" $g_conflict$conflicts"
+  (( staged ))    && s+=" $g_staged$staged"
+  (( unstaged ))  && s+=" $g_unstaged$unstaged"
+  (( untracked )) && s+=" $g_untracked$untracked"
+#@endif
+#@if !counts
+  (( staged + unstaged + untracked + conflicts )) && s+="$g_dirty"
+#@endif
+#@if stash
+  local -i stash=$(command git rev-list --walk-reflogs --count refs/stash 2>/dev/null)
+  (( stash )) && s+=" $g_stash$stash"
+#@endif
+  REPLY="$i$ref$s"
+  (( staged + unstaged + untracked + conflicts )) && REPLY_BG=$_ps_alt[@@KEY@@] REPLY_FG=$_ps_afg[@@KEY@@]
+}
+</script>
+
+<script type="text/x-zsh" id="z-status">
+_ps_seg_@@KEY@@() {
+  if (( _ps_exit )); then
+    REPLY=@@ERR@@
+#@if code
+    if (( _ps_exit > 128 && _ps_exit <= 128 + $#signals - 1 )); then
+      REPLY+=" SIG${signals[_ps_exit - 127]}"
+    else
+      REPLY+=" $_ps_exit"
+    fi
+#@endif
+    REPLY_BG=$_ps_alt[@@KEY@@] REPLY_FG=$_ps_afg[@@KEY@@]
+#@if showOk
+  else
+    REPLY=@@OKSYM@@
+#@endif
+  fi
+}
+</script>
+
+<script type="text/x-zsh" id="z-duration">
+_ps_seg_@@KEY@@() {
+  (( _ps_elapsed >= @@MIN@@ )) || return
+  local i=@@ICON@@ out
+  local -i t=_ps_elapsed
+  if (( t >= 3600 )); then out="$(( t / 3600 ))h $(( t % 3600 / 60 ))m"
+  elif (( t >= 60 )); then out="$(( t / 60 ))m $(( t % 60 ))s"
+  else printf -v out '%.1fs' $_ps_elapsed
+  fi
+  REPLY="$i$out"
+}
+</script>
+
+<script type="text/x-zsh" id="z-time">
+_ps_seg_@@KEY@@() {
+  local i=@@ICON@@
+  REPLY="$i%D{@@FMT@@}"
+}
+</script>
+
+<script type="text/x-zsh" id="z-jobs">
+_ps_seg_@@KEY@@() {
+  (( ${#jobstates} )) || return
+  local i=@@ICON@@
+  REPLY="$i${#jobstates}"
+}
+</script>
+
+<script type="text/x-zsh" id="z-venv">
+_ps_seg_@@KEY@@() {
+  local env=${VIRTUAL_ENV:t}
+  [[ -z $env && -n $CONDA_DEFAULT_ENV && $CONDA_DEFAULT_ENV != base ]] && env=$CONDA_DEFAULT_ENV
+  [[ -n $env ]] || return
+  local i=@@ICON@@
+  _ps_esc "$env"; REPLY="$i$REPLY"
+}
+</script>
+
+<script type="text/x-zsh" id="z-node">
+_ps_seg_@@KEY@@() {
+  [[ -f package.json ]] && (( $+commands[node] )) || return
+  local i=@@ICON@@ v
+  v=$(command node --version 2>/dev/null) || return
+  REPLY="$i${v#v}"
+}
+</script>
+
+<script type="text/x-zsh" id="z-aws">
+_ps_seg_@@KEY@@() {
+  local p=${AWS_PROFILE:-$AWS_VAULT}
+  [[ -n $p ]] || return
+  local i=@@ICON@@
+  _ps_esc "$p"; REPLY="$i$REPLY"
+}
+</script>
+
+<script type="text/x-zsh" id="z-kube">
+_ps_seg_@@KEY@@() {
+  local cfg=${KUBECONFIG%%:*}
+  cfg=${cfg:-$HOME/.kube/config}
+  [[ -r $cfg ]] || return
+  local ctx=${${(M)${(f)"$(<$cfg)"}:#current-context:*}#current-context:}
+  ctx=${${ctx//[\"\' ]/}}
+  [[ -n $ctx ]] || return
+  local i=@@ICON@@
+  _ps_esc "$ctx"; REPLY="$i$REPLY"
+}
+</script>
+
+<script type="text/x-zsh" id="z-custom">
+_ps_seg_@@KEY@@() {
+  local i=@@ICON@@
+#@if cmd
+  local out
+  out=$(@@CMD@@ 2>/dev/null) || return
+  out=${out%%$'\n'*}
+  [[ -n $out ]] || return
+  _ps_esc "$out"; REPLY="$i$REPLY"
+#@endif
+#@if !cmd
+  REPLY="$i"@@TEXT@@
+#@endif
+}
+</script>
+
+<script>
+(() => {
+"use strict";
+
+// ═══════════════ glyphs ═══════════════
+// open = filled on the right (sits before a segment), close = filled on the left (after it)
+const SHAPES = {
+  none:      { name: "None",     open: "",       close: "" },
+  sharp:     { name: "Arrow",    open: "", close: "" },
+  round:     { name: "Round",    open: "", close: "" },
+  slant:     { name: "Slant /",  open: "", close: "" },
+  backslant: { name: "Slant \\", open: "", close: "" },
+  flame:     { name: "Flame",    open: "", close: "" },
+  pixel:     { name: "Pixels",   open: "", close: "" },
+};
+// SVG stand-ins (10×20 cell) so separators fill the line height exactly in the preview
+const FLAME = "M0 0H3C6 1 4.5 3.5 7 5C9.5 6.5 6.5 8.5 8.5 10.5C10.5 12.5 7 14 8.5 16C9.6 17.6 7.5 19 6.5 20H0Z";
+const PIX = (() => { // 4 columns × 8 rows, density falling to the right
+  const keep = [[1,1,1,1,1,1,1,1],[1,1,0,1,1,1,0,1],[0,1,0,1,0,1,0,0],[0,0,0,1,0,0,0,0]];
+  let d = "";
+  keep.forEach((col, x) => col.forEach((on, y) => { if (on) d += `M${x*2.5} ${y*2.5}h2.5v2.5h-2.5Z`; }));
+  return d;
+})();
+const GLYPH_PATH = {
+  "": "M0 0L10 10L0 20Z",
+  "": "M10 0L0 10L10 20Z",
+  "": "M0 0C5.5 0 10 4.5 10 10S5.5 20 0 20Z",
+  "": "M10 0C4.5 0 0 4.5 0 10S4.5 20 10 20Z",
+  "": "M0 0H10L0 20Z",
+  "": "M10 0V20H0Z",
+  "": "M0 0L10 20H0Z",
+  "": "M0 0H10V20Z",
+  "": FLAME,
+  "": { d: FLAME, mirror: true },
+  "": PIX,
+  "": { d: PIX, mirror: true },
+};
+
+const ICONS = [
+  ["","apple"],["","linux"],["","windows"],["","ubuntu"],["","arch"],["","debian"],
+  ["","branch"],["","branch (pl)"],["","fork"],["","git"],["","git logo"],["","github"],
+  ["","folder"],["","folder open"],["","home"],["","lock"],["","user"],["","server"],
+  ["","terminal"],["","code"],["","clock"],["","hourglass"],["","cog"],["","wrench"],
+  ["","python"],["","node"],["","rust"],["","go"],["","ruby"],["","java"],["","swift"],
+  ["","aws"],["","docker"],["","cloud"],["","rocket"],["","star"],["","heart"],
+  ["","bolt"],["","coffee"],["","fire"],["","flask"],["","leaf"],["","moon"],["","sun"],
+  ["","snowflake"],["","paw"],["","anchor"],["","diamond"],["","magic"],["","plug"],
+  ["","bug"],["","check"],["","cross"],["","warning"],
+  ["⎈","helm"],["λ","lambda"],["⚡","zap"],["◆","diamond"],["→","arrow"],
+];
+
+// ═══════════════ palettes ═══════════════
+const PALETTES = {
+  tokyo:  { name: "Tokyo Night", term: "#1a1b26", text: "#c0caf5", dark: "#1a1b26", light: "#c0caf5", muted: "#565f89",
+            ok: "#9ece6a", err: "#f7768e", warn: "#e0af68",
+            seq: ["#7aa2f7","#bb9af7","#7dcfff","#9ece6a","#e0af68","#ff9e64","#2ac3de","#f7768e"] },
+  mocha:  { name: "Catppuccin Mocha", term: "#1e1e2e", text: "#cdd6f4", dark: "#1e1e2e", light: "#cdd6f4", muted: "#6c7086",
+            ok: "#a6e3a1", err: "#f38ba8", warn: "#fab387",
+            seq: ["#cba6f7","#89b4fa","#94e2d5","#a6e3a1","#f9e2af","#fab387","#f5c2e7","#b4befe"] },
+  gruvbox:{ name: "Gruvbox", term: "#282828", text: "#ebdbb2", dark: "#282828", light: "#fbf1c7", muted: "#928374",
+            ok: "#98971a", err: "#cc241d", warn: "#d79921",
+            seq: ["#d65d0e","#d79921","#689d6a","#458588","#b16286","#98971a","#665c54","#504945"] },
+  nord:   { name: "Nord", term: "#2e3440", text: "#d8dee9", dark: "#2e3440", light: "#eceff4", muted: "#4c566a",
+            ok: "#a3be8c", err: "#bf616a", warn: "#ebcb8b",
+            seq: ["#5e81ac","#81a1c1","#88c0d0","#8fbcbb","#a3be8c","#ebcb8b","#d08770","#b48ead"] },
+  dracula:{ name: "Dracula", term: "#282a36", text: "#f8f8f2", dark: "#282a36", light: "#f8f8f2", muted: "#6272a4",
+            ok: "#50fa7b", err: "#ff5555", warn: "#ffb86c",
+            seq: ["#bd93f9","#ff79c6","#8be9fd","#50fa7b","#f1fa8c","#ffb86c","#6272a4","#44475a"] },
+  rose:   { name: "Rosé Pine", term: "#191724", text: "#e0def4", dark: "#191724", light: "#e0def4", muted: "#6e6a86",
+            ok: "#9ccfd8", err: "#eb6f92", warn: "#f6c177",
+            seq: ["#c4a7e7","#ebbcba","#9ccfd8","#f6c177","#31748f","#eb6f92","#524f67","#26233a"] },
+  synth:  { name: "Synthwave ’84", term: "#262335", text: "#ffffff", dark: "#262335", light: "#ffffff", muted: "#848bbd",
+            ok: "#72f1b8", err: "#fe4450", warn: "#fede5d",
+            seq: ["#ff7edb","#36f9f6","#fede5d","#ff8b39","#72f1b8","#b893ce","#fe4450","#495495"] },
+  pastel: { name: "Pastel", term: "#1f1d2b", text: "#e7e2f3", dark: "#1f1d2b", light: "#ffffff", muted: "#6b6684",
+            ok: "#86bbd8", err: "#da627d", warn: "#fca17d",
+            seq: ["#9a348e","#da627d","#fca17d","#86bbd8","#06969a","#33658a","#758bfd","#f2a7c3"] },
+};
+
+// ═══════════════ segment catalogue ═══════════════
+const SEG = {
+  os:       { label: "OS logo", blurb: "Apple or Linux logo, chosen at runtime.", glyph: "", iconable: false, alt: null, opts: [] },
+  context:  { label: "User & host", blurb: "user@host. Alt color when you're root.", glyph: "", alt: "Root",
+              opts: [{ k: "host", label: "Show host", type: "bool", def: true },
+                     { k: "sshOnly", label: "Only over SSH or as root", type: "bool", def: true }] },
+  dir:      { label: "Directory", blurb: "Current path, shortened to the last few folders.", glyph: "", alt: null,
+              opts: [{ k: "depth", label: "Folders shown", type: "num", def: 3, min: 0, max: 9, hint: "0 shows the full path" },
+                     { k: "homeIcon", label: "Home icon inside ~", type: "bool", def: true },
+                     { k: "lock", label: "Lock when read-only", type: "bool", def: true }] },
+  git:      { label: "Git", blurb: "Branch, ahead/behind and change counts from one git call.", glyph: "", alt: "Dirty",
+              opts: [{ k: "aheadBehind", label: "Ahead / behind", type: "bool", def: true },
+                     { k: "counts", label: "Change counts", type: "bool", def: true },
+                     { k: "action", label: "Rebase / merge state", type: "bool", def: true },
+                     { k: "stash", label: "Stash count", type: "bool", def: false },
+                     { k: "syms", label: "Symbols", type: "syms", def: { ahead: "⇡", behind: "⇣", staged: "+", unstaged: "!", untracked: "?", conflict: "~", stash: "≡", dirty: "*" } }] },
+  status:   { label: "Exit status", blurb: "Shows when the last command failed.", glyph: "", iconable: false, alt: "Failed",
+              opts: [{ k: "code", label: "Show code / signal", type: "bool", def: true },
+                     { k: "showOk", label: "Show on success too", type: "bool", def: false },
+                     { k: "okSym", label: "Success symbol", type: "text", def: "✔" },
+                     { k: "errSym", label: "Failure symbol", type: "text", def: "✘" }] },
+  duration: { label: "Duration", blurb: "How long the last command took.", glyph: "", alt: null,
+              opts: [{ k: "min", label: "Show after (s)", type: "num", def: 3, min: 0, max: 600 }] },
+  time:     { label: "Clock", blurb: "Time the prompt was drawn.", glyph: "", alt: null,
+              opts: [{ k: "fmt", label: "Format", type: "select", def: "%H:%M:%S",
+                       choices: [["%H:%M:%S", "14:07:32"], ["%H:%M", "14:07"], ["%-I:%M %p", "2:07 PM"], ["%a %H:%M", "Thu 14:07"]] }] },
+  jobs:     { label: "Jobs", blurb: "Count of background jobs, when any.", glyph: "", alt: null, opts: [] },
+  venv:     { label: "Python env", blurb: "Active virtualenv or conda env.", glyph: "", alt: null, opts: [] },
+  node:     { label: "Node", blurb: "Node version inside a package.json folder.", glyph: "", alt: null, opts: [] },
+  aws:      { label: "AWS profile", blurb: "$AWS_PROFILE when set.", glyph: "", alt: null, opts: [] },
+  kube:     { label: "Kubernetes", blurb: "Current kubectl context.", glyph: "⎈", alt: null, opts: [] },
+  custom:   { label: "Custom", blurb: "Your own text or command output.", glyph: "", alt: null,
+              opts: [{ k: "text", label: "Text", type: "text", def: "hello" },
+                     { k: "cmd", label: "Command", type: "text", def: "", mono: true, hint: "If set, shows the first line of its output and replaces Text. Runs before every prompt." }] },
+};
+
+// ═══════════════ state helpers ═══════════════
+const clone = (o) => JSON.parse(JSON.stringify(o));
+let uid = 0;
+function seg(type, bg, fg, extra = {}) {
+  const d = SEG[type];
+  const o = {};
+  d.opts.forEach((op) => { o[op.k] = clone(op.def); });
+  Object.assign(o, extra.o || {});
+  return { id: "s" + (++uid) + Math.random().toString(36).slice(2, 6), type, bg, fg,
+           alt: extra.alt || bg, afg: extra.afg || fg, icon: extra.icon ?? d.glyph, o };
+}
+const BASE = {
+  mode: "powerline", edge: "none", sep: "sharp", outer: "sharp", cap: "round", divider: " ",
+  lines: 2, rpos: "first", frame: true, fill: "─", charOn: true, char: "❯",
+  transient: true, tstyle: "char", blank: true, bold: false, icons: true, colorMode: "truecolor",
+};
+const P = PALETTES;
+const PRESETS = [
+  { name: "Rainbow Frame", by: "after Powerlevel10k", make: () => ({ ...BASE, palette: "tokyo",
+      term: P.tokyo.term, text: P.tokyo.text, frameColor: "#3b4261", muted: P.tokyo.muted, ok: "#9ece6a", err: "#f7768e",
+      left: [seg("os", "#c0caf5", "#1a1b26"), seg("dir", "#7aa2f7", "#1a1b26"), seg("git", "#9ece6a", "#1a1b26", { alt: "#e0af68" })],
+      right: [seg("status", "#9ece6a", "#1a1b26", { alt: "#f7768e", o: { showOk: true } }), seg("duration", "#e0af68", "#1a1b26"),
+              seg("venv", "#7dcfff", "#1a1b26"), seg("time", "#414868", "#c0caf5")] }) },
+  { name: "Pastel Powerline", by: "after Starship", make: () => ({ ...BASE, palette: "pastel",
+      lines: 1, edge: "round", sep: "sharp", outer: "sharp", charOn: false, frame: false, transient: false,
+      term: P.pastel.term, text: P.pastel.text, frameColor: "#45405e", muted: P.pastel.muted, ok: "#86bbd8", err: "#da627d",
+      left: [seg("os", "#9a348e", "#ffffff"), seg("context", "#da627d", "#ffffff", { alt: "#b4233a", o: { sshOnly: false } }),
+             seg("dir", "#fca17d", "#1f1d2b"), seg("git", "#86bbd8", "#1f1d2b", { alt: "#f2a7c3" }),
+             seg("node", "#06969a", "#ffffff"), seg("time", "#33658a", "#ffffff", { o: { fmt: "%H:%M" } })],
+      right: [seg("status", "#da627d", "#ffffff", { alt: "#da627d" })] }) },
+  { name: "Mocha Capsules", by: "Oh My Posh diamonds", make: () => ({ ...BASE, palette: "mocha",
+      mode: "pills", cap: "round", rpos: "last", frame: false,
+      term: P.mocha.term, text: P.mocha.text, frameColor: "#45475a", muted: P.mocha.muted, ok: "#cba6f7", err: "#f38ba8",
+      left: [seg("dir", "#cba6f7", "#1e1e2e"), seg("git", "#a6e3a1", "#1e1e2e", { alt: "#fab387" }), seg("venv", "#f9e2af", "#1e1e2e")],
+      right: [seg("status", "#f38ba8", "#1e1e2e", { alt: "#f38ba8" }), seg("duration", "#313244", "#fab387"), seg("time", "#313244", "#b4befe", { o: { fmt: "%H:%M" } })] }) },
+  { name: "Gruvbox Slant", by: "after Gruvbox Rainbow", make: () => ({ ...BASE, palette: "gruvbox",
+      edge: "slant", sep: "slant", outer: "slant", frame: false, fill: " ",
+      term: P.gruvbox.term, text: P.gruvbox.text, frameColor: "#504945", muted: P.gruvbox.muted, ok: "#b8bb26", err: "#fb4934",
+      left: [seg("os", "#d65d0e", "#fbf1c7"), seg("dir", "#d79921", "#282828"), seg("git", "#689d6a", "#fbf1c7", { alt: "#b16286" })],
+      right: [seg("status", "#cc241d", "#fbf1c7", { alt: "#cc241d" }), seg("duration", "#458588", "#fbf1c7"), seg("time", "#504945", "#ebdbb2")] }) },
+  { name: "Pure", by: "after sindresorhus/pure", make: () => ({ ...BASE, palette: "tokyo",
+      mode: "plain", icons: false, frame: false, rpos: "last", divider: " ", tstyle: "char",
+      term: "#14151b", text: "#d4d6de", frameColor: "#3a3d4a", muted: "#5c6070", ok: "#c678dd", err: "#e06c75",
+      left: [seg("dir", "#61afef", "#61afef", { o: { depth: 0 } }),
+             seg("git", "#7f848e", "#7f848e", { alt: "#7f848e", o: { counts: false, action: true } }),
+             seg("duration", "#e5c07b", "#e5c07b", { o: { min: 5 } })],
+      right: [] }) },
+  { name: "Nord Flame", by: "powerline extras", make: () => ({ ...BASE, palette: "nord",
+      lines: 1, edge: "none", sep: "flame", outer: "flame", frame: false, charOn: true,
+      term: P.nord.term, text: P.nord.text, frameColor: "#4c566a", muted: P.nord.muted, ok: "#88c0d0", err: "#bf616a",
+      left: [seg("dir", "#5e81ac", "#eceff4"), seg("git", "#88c0d0", "#2e3440", { alt: "#ebcb8b" })],
+      right: [seg("status", "#bf616a", "#eceff4", { alt: "#bf616a" }), seg("duration", "#434c5e", "#ebcb8b"), seg("time", "#3b4252", "#d8dee9")] }) },
+  { name: "Neon Pixels", by: "Synthwave ’84", make: () => ({ ...BASE, palette: "synth",
+      edge: "pixel", sep: "pixel", outer: "pixel", rpos: "last", bold: true, char: "➜",
+      term: P.synth.term, text: P.synth.text, frameColor: "#ff7edb", muted: P.synth.muted, ok: "#72f1b8", err: "#fe4450",
+      left: [seg("os", "#36f9f6", "#262335"), seg("dir", "#ff7edb", "#262335"), seg("git", "#fede5d", "#262335", { alt: "#ff8b39" })],
+      right: [seg("status", "#fe4450", "#ffffff", { alt: "#fe4450" }), seg("duration", "#b893ce", "#262335"), seg("jobs", "#72f1b8", "#262335")] }) },
+  { name: "Rosé Lean", by: "p10k lean, with icons", make: () => ({ ...BASE, palette: "rose",
+      mode: "plain", frame: false, fill: " ", divider: "  ",
+      term: P.rose.term, text: P.rose.text, frameColor: "#26233a", muted: P.rose.muted, ok: "#c4a7e7", err: "#eb6f92",
+      left: [seg("dir", "#9ccfd8", "#9ccfd8"), seg("git", "#c4a7e7", "#c4a7e7", { alt: "#f6c177" }), seg("venv", "#ebbcba", "#ebbcba")],
+      right: [seg("status", "#eb6f92", "#eb6f92", { alt: "#eb6f92" }), seg("duration", "#f6c177", "#f6c177"), seg("time", "#6e6a86", "#6e6a86")] }) },
+];
+
+// ═══════════════ app state ═══════════════
+const STORE = "zsh-prompt-studio:v1";
+function loadSaved() {
+  try { const raw = localStorage.getItem(STORE); if (raw) return JSON.parse(raw); } catch (e) { /* storage blocked */ }
+  return null;
+}
+let saved = loadSaved();
+let state = saved?.state && Array.isArray(saved.state.left) ? saved.state : PRESETS[0].make();
+let presetName = saved?.presetName ?? PRESETS[0].name;
+let scn = saved?.scn || { git: "dirty", failed: false, slow: true, venv: true, node: false, jobs: false, deep: false, ssh: false, root: false, cloud: false };
+let sel = { side: "left", id: state.left[1]?.id || state.left[0]?.id || null };
+let saveTimer = 0;
+function persist() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORE, JSON.stringify({ state, scn, presetName })); } catch (e) { /* storage blocked */ }
+  }, 250);
+}
+
+// ═══════════════ preview model ═══════════════
+const fmtTime = (fmt) => {
+  const d = new Date(); const p = (n) => String(n).padStart(2, "0");
+  const h = d.getHours(), m = p(d.getMinutes()), s = p(d.getSeconds());
+  return { "%H:%M:%S": `${p(h)}:${m}:${s}`, "%H:%M": `${p(h)}:${m}`, "%-I:%M %p": `${h % 12 || 12}:${m} ${h < 12 ? "AM" : "PM"}`,
+           "%a %H:%M": `${d.toLocaleDateString("en-US", { weekday: "short" })} ${p(h)}:${m}` }[fmt] || fmt;
+};
+function scenarioPath(c) {
+  if (c.git === "none") return "~/Downloads";
+  return c.deep ? "~/code/aurora/packages/web/src/components" : "~/code/aurora";
+}
+function truncPath(path, depth) {
+  const parts = path.split("/");
+  return depth > 0 && parts.length > depth ? "…/" + parts.slice(-depth).join("/") : path;
+}
+function segText(st, s, c) {
+  const ic = (g) => (st.icons && g ? g + " " : "");
+  const o = s.o;
+  switch (s.type) {
+    case "os": return { t: st.icons ? "" : "macOS" };
+    case "context":
+      if (o.sshOnly && !c.ssh && !c.root) return null;
+      return { t: ic(s.icon) + (c.root ? "root" : "rick") + (o.host ? "@" + (c.ssh ? "devbox" : "studio") : ""), alt: c.root };
+    case "dir": {
+      const path = scenarioPath(c);
+      const i = o.homeIcon && path.startsWith("~") ? "" : s.icon;
+      return { t: ic(i) + truncPath(path, o.depth) };
+    }
+    case "git": {
+      if (c.git === "none") return null;
+      const y = o.syms; const dirty = c.git === "dirty";
+      let ref = dirty ? "feat/aurora" : "main", tail = "";
+      if (o.aheadBehind && dirty) tail += ` ${y.ahead}2`;
+      if (o.counts && dirty) tail += ` ${y.staged}3 ${y.unstaged}1 ${y.untracked}2`;
+      if (!o.counts && dirty) tail += y.dirty;
+      if (o.stash && dirty) tail += ` ${y.stash}1`;
+      return { t: ic(s.icon) + ref + tail, alt: dirty };
+    }
+    case "status":
+      if (c.failed) return { t: o.errSym + (o.code ? " 1" : ""), alt: true };
+      return o.showOk ? { t: o.okSym } : null;
+    case "duration": {
+      const secs = c.slow ? 12.4 : 0.3;
+      return secs >= o.min ? { t: ic(s.icon) + (c.slow ? "12.4s" : "0.3s") } : null;
+    }
+    case "time": return { t: ic(s.icon) + fmtTime(o.fmt) };
+    case "jobs": return c.jobs ? { t: ic(s.icon) + "1" } : null;
+    case "venv": return c.venv ? { t: ic(s.icon) + ".venv" } : null;
+    case "node": return c.node ? { t: ic(s.icon) + "22.11.0" } : null;
+    case "aws": return c.cloud ? { t: ic(s.icon) + "staging" } : null;
+    case "kube": return c.cloud ? { t: ic(s.icon) + "eks-prod" } : null;
+    case "custom": {
+      const body = o.cmd ? `$(${o.cmd.split(/\s+/)[0]})` : o.text;
+      if (!body && !(st.icons && s.icon)) return null;
+      return { t: body ? ic(s.icon) + body : s.icon };
+    }
+  }
+  return null;
+}
+const T = (text, fg, bg, bold) => ({ k: "t", text, fg, bg, bold });
+const G = (ch, fg, bg) => ({ k: "g", ch, fg, bg });
+function sideCells(st, side, c) {
+  const cells = []; let prev = null;
+  for (const s of st[side]) {
+    const r = segText(st, s, c); if (!r) continue;
+    const bg = r.alt ? s.alt : s.bg, fg = r.alt ? s.afg : s.fg;
+    if (st.mode === "powerline") {
+      if (prev === null) {
+        const g = side === "left" ? SHAPES[st.edge].open : SHAPES[st.outer].open;
+        if (g) cells.push(G(g, bg, null));
+      } else if (side === "left") { const g = SHAPES[st.sep].close; if (g) cells.push(G(g, prev, bg)); }
+      else { const g = SHAPES[st.sep].open; if (g) cells.push(G(g, bg, prev)); }
+      cells.push(T(" " + r.t + " ", fg, bg, st.bold));
+    } else if (st.mode === "pills") {
+      if (prev !== null) cells.push(T(" "));
+      const sh = SHAPES[st.cap];
+      if (sh.open) cells.push(G(sh.open, bg, null));
+      cells.push(T(" " + r.t + " ", fg, bg, st.bold));
+      if (sh.close) cells.push(G(sh.close, bg, null));
+    } else {
+      if (prev !== null) cells.push(T(st.divider, st.muted));
+      cells.push(T(r.t, bg, null, st.bold));
+    }
+    prev = bg;
+  }
+  if (st.mode === "powerline" && prev !== null) {
+    const g = side === "left" ? SHAPES[st.outer].close : SHAPES[st.edge].close;
+    if (g) cells.push(G(g, prev, null));
+  }
+  return cells;
+}
+// Returns rows: { cells, fill?, right?, cursor?, tail? }
+function promptRows(st, c) {
+  const L = sideCells(st, "left", c), R = sideCells(st, "right", c);
+  const pc = T(st.char + " ", c.failed ? st.err : st.ok);
+  const fr = st.frameColor;
+  if (st.lines === 1) {
+    const cells = [...L];
+    if (L.length) cells.push(T(" "));
+    if (st.charOn) cells.push(pc);
+    return [{ cells, right: R, cursor: true }];
+  }
+  const f1 = st.frame ? [T("╭─", fr)] : [], f2 = st.frame ? [T("╰─", fr)] : [];
+  if (st.rpos === "last") return [{ cells: [...f1, ...L] }, { cells: [...f2, pc], right: R, cursor: true }];
+  return [
+    { cells: [...f1, ...L], fill: { ch: st.fill, color: fr }, right: [...R, ...(st.frame ? [T("─╮", fr)] : [])], tail: true },
+    { cells: [...f2, pc], right: st.frame ? [T("─╯", fr)] : [], cursor: true, tail: st.frame },
+  ];
+}
+function transientRow(st, c) {
+  const pc = T(st.char + " ", c.failed ? st.err : st.ok);
+  if (st.tstyle === "dir") {
+    const d = st.left.concat(st.right).find((s) => s.type === "dir");
+    return [T(scenarioPath(c) + " ", d ? d.bg : st.text), pc];
+  }
+  return [pc];
+}
+
+// ═══════════════ DOM rendering ═══════════════
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === "class") n.className = v; else if (k === "style") n.style.cssText = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat()) if (k != null) n.append(k.nodeType ? k : document.createTextNode(k));
+  return n;
+};
+function glyphSvg(ch, fg, bg) {
+  const spec = GLYPH_PATH[ch];
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 10 20"); svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("aria-hidden", "true");
+  if (bg) { const r = document.createElementNS(NS, "rect"); r.setAttribute("width", "10"); r.setAttribute("height", "20"); r.setAttribute("fill", bg); svg.append(r); }
+  const p = document.createElementNS(NS, "path");
+  const d = typeof spec === "string" ? spec : spec.d;
+  p.setAttribute("d", d); p.setAttribute("fill", fg);
+  if (spec.mirror) p.setAttribute("transform", "matrix(-1 0 0 1 10 0)");
+  svg.append(p);
+  return svg;
+}
+function cellNode(cell) {
+  if (cell.k === "g" && GLYPH_PATH[cell.ch]) return glyphSvg(cell.ch, cell.fg, cell.bg);
+  const s = el("span", {}, cell.k === "g" ? cell.ch : cell.text);
+  if (cell.fg) s.style.color = cell.fg;
+  if (cell.bg) s.style.background = cell.bg;
+  if (cell.bold) s.style.fontWeight = "700";
+  return s;
+}
+function rowNode(row, st, extraText) {
+  const line = el("div", { class: "tl" });
+  row.cells.forEach((c) => line.append(cellNode(c)));
+  if (extraText) line.append(el("span", { style: `color:${st.text}` }, extraText));
+  if (row.cursor && !extraText) line.append(el("span", { class: "cursor", style: `background:${st.text}` }));
+  if (row.fill) line.append(el("span", { class: "fill", style: `color:${row.fill.color}` }, row.fill.ch.repeat(400)));
+  else line.append(el("span", { class: "grow" }));
+  (row.right || []).forEach((c) => line.append(cellNode(c)));
+  if (row.tail) line.append(el("span", {}, " "));
+  return line;
+}
+function textRow(text, st, dim = true) {
+  return el("div", { class: "tl" }, el("span", { class: dim ? "out" : "", style: `color:${st.text}` }, text));
+}
+
+const HISTORY = [
+  { cmd: "git switch -c feat/aurora", out: ["Switched to a new branch 'feat/aurora'"], c: { git: "clean" } },
+];
+function renderTerminal() {
+  const st = state, c = scn;
+  const term = document.getElementById("term");
+  const shell = term.closest(".term-shell");
+  shell.style.background = st.term;
+  const bar = document.getElementById("term-bar");
+  bar.style.background = mix(st.term, st.text, 0.06); bar.style.color = st.text;
+  term.style.color = st.text;
+  term.replaceChildren();
+  const blank = () => st.blank && term.append(el("div", { class: "tl" }, " "));
+  // Earlier commands, drawn the way scrollback will look
+  const last = { cmd: c.failed ? "pnpm test" : (c.slow ? "pnpm build" : "ls"),
+                 out: c.failed ? ["✗ 3 of 128 tests failed"] : (c.slow ? ["✓ built in 12.4s"] : ["README.md  package.json  src"]) };
+  const runs = [{ ...HISTORY[0], c: { ...c, ...HISTORY[0].c, failed: false, slow: false } },
+                { ...last, c: { ...c, failed: false, slow: false } }];
+  runs.forEach((r, i) => {
+    if (i > 0) blank();
+    if (st.transient) term.append(el("div", { class: "tl" }, ...transientRow(st, r.c).map(cellNode), el("span", {}, r.cmd)));
+    else {
+      const rows = promptRows(st, r.c);
+      rows.forEach((row, j) => term.append(rowNode(row, st, j === rows.length - 1 ? r.cmd : null)));
+    }
+    r.out.forEach((o) => term.append(textRow(o, st)));
+  });
+  blank();
+  promptRows(st, c).forEach((row) => term.append(rowNode(row, st)));
+  const cols = Math.max(40, Math.floor((term.clientWidth - 32) / (15 * 0.6)));
+  document.getElementById("term-title").textContent = `rick — zsh — ${cols}×${term.children.length + 2}`;
+}
+
+function miniPreview(st) {
+  const box = el("div", { class: "mini", style: `background:${st.term};color:${st.text}` });
+  const inner = el("div", { class: "term", style: "padding:0;min-width:0;font-size:inherit;--lh:1.6em" });
+  promptRows(st, { git: "dirty", failed: false, slow: true, venv: true, node: true, jobs: true, deep: false, ssh: false, root: false, cloud: false })
+    .forEach((r) => inner.append(rowNode(r, st)));
+  box.append(inner);
+  return box;
+}
+
+// ═══════════════ colors ═══════════════
+function hexToRgb(h) { h = h.replace("#", ""); if (h.length === 3) h = [...h].map((x) => x + x).join(""); const n = parseInt(h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function mix(a, b, t) { const A = hexToRgb(a), B = hexToRgb(b); return "#" + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, "0")).join(""); }
+function lum(h) { return hexToRgb(h).map((v) => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }).reduce((s, v, i) => s + v * [.2126, .7152, .0722][i], 0); }
+function nearest256(hex) {
+  const [r, g, b] = hexToRgb(hex);
+  const lv = [0, 95, 135, 175, 215, 255];
+  const q = (v) => lv.reduce((bi, x, i) => Math.abs(x - v) < Math.abs(lv[bi] - v) ? i : bi, 0);
+  const ci = 16 + 36 * q(r) + 6 * q(g) + q(b), cr = [lv[q(r)], lv[q(g)], lv[q(b)]];
+  const gi = Math.max(0, Math.min(23, Math.round(((r + g + b) / 3 - 8) / 10))), gv = 8 + gi * 10;
+  const d = (x, y, z) => (r - x) ** 2 + (g - y) ** 2 + (b - z) ** 2;
+  return d(...cr) <= d(gv, gv, gv) ? ci : 232 + gi;
+}
+function recolor(st, pal) {
+  const p = PALETTES[pal]; let i = 0;
+  const pick = (bg) => (lum(bg) > 0.28 ? p.dark : p.light);
+  st.palette = pal; st.term = p.term; st.text = p.text; st.muted = p.muted; st.ok = p.seq[0]; st.err = p.err;
+  st.frameColor = mix(p.term, p.text, 0.25);
+  for (const s of [...st.left, ...st.right]) {
+    if (s.type === "status") { s.bg = p.ok; s.alt = p.err; }
+    else { s.bg = p.seq[i++ % p.seq.length]; s.alt = s.type === "context" ? p.err : p.warn; }
+    if (st.mode === "plain") { s.fg = s.bg; s.afg = s.alt; }
+    else { s.fg = pick(s.bg); s.afg = pick(s.alt); }
+  }
+}
+
+// ═══════════════ zsh generation ═══════════════
+// $'…' literal. Non-ASCII stays as raw UTF-8: zsh rejects \uXXXX escapes
+// outright when the shell's locale isn't UTF-8, which would abort the file.
+function zq(str) {
+  let out = "";
+  for (const ch of String(str)) {
+    const cp = ch.codePointAt(0);
+    if (ch === "'" || ch === "\\") out += "\\" + ch;
+    else if (cp < 0x20) out += "\\x" + cp.toString(16).padStart(2, "0");
+    else out += ch;
+  }
+  return out === "" ? "''" : "$'" + out + "'";
+}
+const zqp = (s) => zq(String(s).replace(/%/g, "%%")); // text that lands in the prompt
+function tpl(src, vars, flags) {
+  const out = [], stack = [];
+  for (const line of src.replace(/^\n/, "").replace(/\s+$/, "").split("\n")) {
+    const m = line.match(/^\s*#@if (!?)(\w+)\s*$/);
+    if (m) { stack.push(m[1] ? !flags[m[2]] : !!flags[m[2]]); continue; }
+    if (/^\s*#@endif\s*$/.test(line)) { stack.pop(); continue; }
+    if (stack.every(Boolean)) out.push(line);
+  }
+  return out.join("\n").replace(/@@(\w+)@@/g, (all, k) => (k in vars ? vars[k] : all));
+}
+const TPL = (id) => document.getElementById("z-" + id).textContent;
+
+function segKeys(st) {
+  const seen = {}, keys = new Map();
+  for (const s of [...st.left, ...st.right]) { seen[s.type] = (seen[s.type] || 0) + 1; keys.set(s.id, s.type + (seen[s.type] > 1 ? seen[s.type] : "")); }
+  return keys;
+}
+function genSeg(st, s, key) {
+  const o = s.o, icon = st.icons && s.icon ? zqp(s.icon + " ") : "''";
+  const v = { KEY: key, ICON: icon }, f = { ...o };
+  switch (s.type) {
+    case "os":
+      Object.assign(v, st.icons ? { MAC: zq(""), LINUX: zq(""), OTHER: zq("") } : { MAC: "macOS", LINUX: "linux", OTHER: "'$OSTYPE'" });
+      if (!st.icons) v.OTHER = '"$OSTYPE"';
+      break;
+    case "context": v.HOST = o.host ? "@%m" : ""; break;
+    case "dir": {
+      const d = Math.max(0, o.depth | 0);
+      v.PATH = d ? `%(${d + 1}~|…/%${d}~|%~)` : "%~";
+      v.HOMEICON = zqp(" ");
+      v.LOCK = st.icons ? zq("") : "'RO'";
+      f.homeIcon = o.homeIcon && st.icons;
+      break;
+    }
+    case "git": {
+      const y = o.syms;
+      v.SYMS = `  local g_ahead=${zqp(y.ahead)} g_behind=${zqp(y.behind)} g_staged=${zqp(y.staged)} g_unstaged=${zqp(y.unstaged)}\n` +
+               `  local g_untracked=${zqp(y.untracked)} g_conflict=${zqp(y.conflict)} g_stash=${zqp(y.stash)} g_dirty=${zqp(y.dirty)}`;
+      break;
+    }
+    case "status": v.ERR = zqp(o.errSym); v.OKSYM = zqp(o.okSym); break;
+    case "duration": v.MIN = String(Math.max(0, +o.min || 0)); break;
+    case "time": v.FMT = o.fmt; break;
+    case "custom": v.CMD = o.cmd; v.TEXT = o.text ? zqp(o.text) : "''"; f.cmd = !!o.cmd.trim();
+      if (!o.cmd.trim() && !o.text) v.ICON = st.icons && s.icon ? zqp(s.icon) : "''";
+      break;
+  }
+  return tpl(TPL(s.type), v, f);
+}
+function genZsh(st, name) {
+  const keys = segKeys(st);
+  const all = [...st.left, ...st.right];
+  const col = (h) => (st.colorMode === "256" ? String(nearest256(h)) : h.toLowerCase());
+  const amap = (fn) => all.map((s) => `${keys.get(s.id)} '${col(fn(s))}'`).join(" ");
+  const pl = st.mode === "powerline";
+  const fr = col(st.frameColor);
+  const two = st.lines === 2;
+  const frame = two && st.frame;
+  const dirSeg = all.find((s) => s.type === "dir");
+  const v = {
+    TITLE: name, DATE: new Date().toLocaleDateString("en-CA"),
+    COLORMODE: st.colorMode === "256" ? "256-color palette indexes" : "24-bit hex; set the 256-color option for Terminal.app on older macOS",
+    LEFT: st.left.map((s) => keys.get(s.id)).join(" "), RIGHT: st.right.map((s) => keys.get(s.id)).join(" "),
+    BG: amap((s) => s.bg), FG: amap((s) => s.fg), ALT: amap((s) => s.alt), AFG: amap((s) => s.afg),
+    MODE: st.mode,
+    LO: zq(pl ? SHAPES[st.edge].open : ""), LS: zq(pl ? SHAPES[st.sep].close : ""), LC: zq(pl ? SHAPES[st.outer].close : ""),
+    RO: zq(pl ? SHAPES[st.outer].open : ""), RS: zq(pl ? SHAPES[st.sep].open : ""), RC: zq(pl ? SHAPES[st.edge].close : ""),
+    PO: zq(st.mode === "pills" ? SHAPES[st.cap].open : ""), PC: zq(st.mode === "pills" ? SHAPES[st.cap].close : ""),
+    DIV: zqp(st.divider), MUTED: col(st.muted),
+    BOLD_ON: st.bold ? "'%B'" : "''", BOLD_OFF: st.bold ? "'%b'" : "''",
+    CHAR: zqp(st.char), OK: col(st.ok), ERR: col(st.err),
+    FRAME: fr, FILL: zq(st.fill || " "),
+    F1: frame ? `'%F{${fr}}'${zq("╭─")}'%f'` : "''", F2: frame ? `'%F{${fr}}'${zq("╰─")}'%f'` : "''",
+    F1R: frame && st.rpos === "first" ? `'%F{${fr}}'${zq("─╮")}'%f'` : "''",
+    // Trailing space: the top line stops one column short of the edge, so the bottom corner must too
+    F2R: frame && st.rpos === "first" ? `'%F{${fr}}'${zq("─╯")}'%f '` : "''",
+    TDIRC: col(dirSeg ? dirSeg.bg : st.ok),
+    SEGMENTS: all.map((s) => genSeg(st, s, keys.get(s.id))).join("\n\n"),
+  };
+  const f = {
+    venv: all.some((s) => s.type === "venv"), blank: st.blank, transient: st.transient, tdir: st.tstyle === "dir",
+    oneline: !two, rlast: two && st.rpos === "last", rfirst: two && st.rpos === "first",
+    charOn: two || st.charOn,
+  };
+  return tpl(TPL("core"), v, f) + "\n";
+}
+
+function highlight(code) {
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const KW = /\b(if|then|elif|else|fi|for|in|do|done|case|esac|while|local|typeset|return|setopt|autoload|zmodload|export|print|printf|zle)\b/g;
+  const plain = (s) => esc(s).replace(/(\$\{[^}\s]*\}?|\$[A-Za-z_#?@][\w]*)/g, '<span class="v">$1</span>').replace(KW, '<span class="k">$1</span>')
+                             .replace(/^(\s*)(_ps_\w+|TRAPWINCH)(\(\))/, '$1<span class="f">$2</span>$3');
+  return code.split("\n").map((line) => {
+    let out = "", buf = "", i = 0;
+    const flush = () => { out += plain(buf); buf = ""; };
+    while (i < line.length) {
+      const ch = line[i];
+      if (ch === "#" && (i === 0 || /\s/.test(line[i - 1]))) { flush(); out += `<span class="c">${esc(line.slice(i))}</span>`; i = line.length; break; }
+      if (ch === "'" || (ch === "$" && line[i + 1] === "'")) {
+        flush(); const start = i; i += ch === "$" ? 2 : 1;
+        while (i < line.length && line[i] !== "'") { if (line[i] === "\\" && ch === "$") i++; i++; }
+        out += `<span class="s">${esc(line.slice(start, i + 1))}</span>`; i++; continue;
+      }
+      buf += ch; i++;
+    }
+    flush(); return out;
+  }).join("\n");
+}
+
+// ═══════════════ UI: presets, scenario ═══════════════
+function renderPresets() {
+  const box = document.getElementById("presets"); box.replaceChildren();
+  PRESETS.forEach((p) => {
+    const st = p.make();
+    box.append(el("button", { class: "preset", type: "button", "aria-pressed": String(presetName === p.name),
+      onclick: () => { state = p.make(); presetName = p.name; sel = { side: "left", id: state.left[0]?.id }; renderAll(); } },
+      miniPreview(st), el("div", { class: "pname" }, el("span", {}, p.name), el("span", {}, p.by))));
+  });
+}
+function renderScenario() {
+  const box = document.getElementById("scenario"); box.replaceChildren(el("span", { class: "eyebrow" }, "Try it with"));
+  const gitCtl = el("span", { class: "seg-ctl", role: "group", "aria-label": "Git state" });
+  [["none", "No repo"], ["clean", "Clean repo"], ["dirty", "Dirty repo"]].forEach(([k, label]) =>
+    gitCtl.append(el("button", { type: "button", "aria-pressed": String(scn.git === k), onclick: () => { scn.git = k; renderScenario(); refresh(); } }, label)));
+  box.append(gitCtl);
+  [["failed", "Last command failed"], ["slow", "Slow command"], ["venv", "Python venv"], ["node", "Node project"],
+   ["jobs", "Background job"], ["deep", "Deep folder"], ["ssh", "Over SSH"], ["root", "Root"], ["cloud", "AWS + k8s"]]
+    .forEach(([k, label]) => box.append(el("button", { class: "chip", type: "button", "aria-pressed": String(!!scn[k]),
+      onclick: () => { scn[k] = !scn[k]; renderScenario(); refresh(); } }, label)));
+}
+
+// ═══════════════ UI: segment lists ═══════════════
+let drag = null;
+function findSeg(id) {
+  for (const side of ["left", "right"]) { const i = state[side].findIndex((s) => s.id === id); if (i >= 0) return { side, i, s: state[side][i] }; }
+  return null;
+}
+function swatchText(s) {
+  const r = segText({ ...state }, s, { ...scn, git: scn.git === "none" ? "clean" : scn.git, failed: true, slow: true, venv: true, node: true, jobs: true, cloud: true, ssh: true });
+  const t = (r ? r.t : SEG[s.type].label);
+  return t.length > 16 ? t.slice(0, 15) + "…" : t;
+}
+function renderLists() {
+  for (const side of ["left", "right"]) {
+    const list = document.getElementById("list-" + side); list.replaceChildren();
+    if (!state[side].length) list.append(el("div", { class: "empty" }, side === "left" ? "Drop segments here" : "Nothing on the right. Drop or add segments here."));
+    state[side].forEach((s, i) => {
+      const plain = state.mode === "plain";
+      const row = el("div", { class: "segrow", draggable: "true", "aria-selected": String(sel.id === s.id), tabindex: "0", role: "option",
+        onclick: () => { sel = { side, id: s.id }; renderLists(); renderInspector(); },
+        onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sel = { side, id: s.id }; renderLists(); renderInspector(); } },
+        ondragstart: (e) => { drag = s.id; row.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", s.id); },
+        ondragend: () => { drag = null; row.classList.remove("dragging"); document.querySelectorAll(".drop-before,.dragover").forEach((n) => n.classList.remove("drop-before", "dragover")); },
+        ondragover: (e) => { if (!drag) return; e.preventDefault(); e.stopPropagation(); document.querySelectorAll(".drop-before").forEach((n) => n.classList.remove("drop-before")); row.classList.add("drop-before"); },
+        ondrop: (e) => { e.preventDefault(); e.stopPropagation(); moveSeg(drag, side, i); },
+      },
+        el("span", { class: "handle", "aria-hidden": "true" }, "⋮⋮"),
+        el("span", { class: "swatch", style: plain ? `color:${s.bg};background:${state.term}` : `background:${s.bg};color:${s.fg}` }, swatchText(s)),
+        el("span", { class: "nm" }, SEG[s.type].label),
+        el("span", { class: "row-actions" },
+          el("button", { class: "icon-btn", type: "button", title: "Move up", "aria-label": "Move up", onclick: (e) => { e.stopPropagation(); moveSeg(s.id, side, Math.max(0, i - 1)); } }, "↑"),
+          el("button", { class: "icon-btn", type: "button", title: side === "left" ? "Move to right prompt" : "Move to left prompt", "aria-label": "Move to other side",
+            onclick: (e) => { e.stopPropagation(); const o = side === "left" ? "right" : "left"; moveSeg(s.id, o, state[o].length); } }, "⇄"),
+          el("button", { class: "icon-btn", type: "button", title: "Remove", "aria-label": "Remove", onclick: (e) => { e.stopPropagation(); removeSeg(s.id); } }, "✕")));
+      list.append(row);
+    });
+  }
+  document.getElementById("add-target").textContent = `adds to the ${sel.side} side`;
+}
+function moveSeg(id, side, idx) {
+  const f = findSeg(id); if (!f) return;
+  state[f.side].splice(f.i, 1);
+  if (f.side === side && f.i < idx) idx--;
+  state[side].splice(Math.max(0, Math.min(idx, state[side].length)), 0, f.s);
+  sel = { side, id }; changed(true);
+}
+function removeSeg(id) {
+  const f = findSeg(id); if (!f) return;
+  state[f.side].splice(f.i, 1);
+  const n = state[f.side][Math.min(f.i, state[f.side].length - 1)];
+  sel = { side: f.side, id: n ? n.id : null }; changed(true);
+}
+for (const side of ["left", "right"]) {
+  const list = document.getElementById("list-" + side);
+  list.addEventListener("dragover", (e) => { if (!drag) return; e.preventDefault(); list.classList.add("dragover"); });
+  list.addEventListener("dragleave", (e) => { if (!list.contains(e.relatedTarget)) list.classList.remove("dragover"); });
+  list.addEventListener("drop", (e) => { e.preventDefault(); list.classList.remove("dragover"); if (drag) moveSeg(drag, side, state[side].length); });
+}
+function renderLibrary() {
+  const lib = document.getElementById("library"); lib.replaceChildren();
+  Object.entries(SEG).forEach(([type, d]) => lib.append(el("button", { class: "lib-btn", type: "button", title: d.blurb,
+    onclick: () => {
+      const p = PALETTES[state.palette] || PALETTES.tokyo;
+      const used = state.left.length + state.right.length;
+      const bg = type === "status" ? p.ok : p.seq[used % p.seq.length];
+      const fg = state.mode === "plain" ? bg : (lum(bg) > 0.28 ? p.dark : p.light);
+      const alt = type === "status" || type === "context" ? p.err : p.warn;
+      const s = seg(type, bg, fg, { alt, afg: state.mode === "plain" ? alt : (lum(alt) > 0.28 ? p.dark : p.light) });
+      const side = sel.side || "left";
+      state[side].push(s); sel = { side, id: s.id }; changed(true);
+    } }, el("b", {}, el("i", {}, d.glyph), d.label), el("span", {}, d.blurb))));
+}
+
+// ═══════════════ UI: inspector ═══════════════
+function colorInput(label, val, onInput, id) {
+  return el("label", { class: "color" }, el("input", { type: "color", value: val, id, oninput: (e) => onInput(e.target.value) }), label);
+}
+function renderInspector() {
+  const box = document.getElementById("inspector"); box.replaceChildren();
+  const f = sel.id && findSeg(sel.id);
+  if (!f) { box.append(el("div", { class: "panel-head" }, el("h2", {}, "Inspector")), el("p", { class: "hint" }, "Select a segment to edit its colors, icon and options.")); return; }
+  const s = f.s, d = SEG[s.type], plain = state.mode === "plain";
+  box.append(el("div", { class: "panel-head" }, el("h2", {}, d.label), el("small", {}, f.side === "left" ? "left prompt" : "right prompt")),
+             el("p", { class: "hint" }, d.blurb));
+  // colors
+  const cg = el("div", { class: "group" }, el("div", { class: "eyebrow" }, "Colors"));
+  const colors = el("div", { class: "colors" });
+  if (plain) {
+    colors.append(colorInput("Text", s.bg, (v) => { s.bg = v; s.fg = v; refresh(); }, "c-bg"));
+    if (d.alt) colors.append(colorInput(d.alt, s.alt, (v) => { s.alt = v; s.afg = v; refresh(); }, "c-alt"));
+  } else {
+    colors.append(colorInput("Background", s.bg, (v) => { s.bg = v; refresh(); }, "c-bg"),
+                  colorInput("Text", s.fg, (v) => { s.fg = v; refresh(); }, "c-fg"));
+    if (d.alt) colors.append(colorInput(d.alt + " bg", s.alt, (v) => { s.alt = v; refresh(); }, "c-alt"),
+                             colorInput(d.alt + " text", s.afg, (v) => { s.afg = v; refresh(); }, "c-afg"));
+  }
+  cg.append(colors);
+  const pal = PALETTES[state.palette];
+  if (pal) {
+    const sw = el("div", { class: "tagline" });
+    [...pal.seq, pal.ok, pal.err, pal.dark, pal.light].forEach((c) => sw.append(el("button", { type: "button", class: "icon-btn",
+      title: `Use ${c} as background`, "aria-label": `Use ${c}`, style: `background:${c};width:20px;height:20px;border:1px solid var(--line)`,
+      onclick: () => { s.bg = c; if (plain) s.fg = c; else s.fg = lum(c) > 0.28 ? pal.dark : pal.light; renderInspector(); refresh(); } })));
+    cg.append(el("p", { class: "hint" }, pal.name + " swatches"), sw);
+  }
+  box.append(cg);
+  // icon
+  if (d.iconable !== false) {
+    const ig = el("div", { class: "group" }, el("div", { class: "eyebrow" }, "Icon"));
+    const input = el("input", { type: "text", class: "mono", id: "icon-text", value: s.icon, "aria-label": "Icon text",
+      oninput: (e) => { s.icon = e.target.value; refresh(); markIcon(); } });
+    const picker = el("div", { class: "icon-picker", role: "group", "aria-label": "Icon choices" });
+    const markIcon = () => picker.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.g === s.icon)));
+    [["", "none"], ...ICONS].forEach(([g, n]) => picker.append(el("button", { type: "button", title: n, "aria-label": n, "data-g": g,
+      onclick: () => { s.icon = g; input.value = g; markIcon(); refresh(); } }, g || "∅")));
+    markIcon();
+    ig.append(el("div", { class: "field" }, el("label", { for: "icon-text" }, "Glyph"), input), picker);
+    if (!state.icons) ig.append(el("p", { class: "hint" }, "Icons are turned off in Style."));
+    box.append(ig);
+  }
+  // options
+  if (d.opts.length) {
+    const og = el("div", { class: "group" }, el("div", { class: "eyebrow" }, "Options"));
+    d.opts.forEach((op) => {
+      const id = `o-${op.k}`;
+      if (op.type === "bool") {
+        og.append(el("label", { class: "toggle" }, el("input", { type: "checkbox", id, checked: s.o[op.k], onchange: (e) => { s.o[op.k] = e.target.checked; refresh(); } }), op.label));
+      } else if (op.type === "num") {
+        og.append(el("div", { class: "field" }, el("label", { for: id }, op.label), el("input", { type: "number", id, min: op.min, max: op.max, value: s.o[op.k],
+          oninput: (e) => { s.o[op.k] = Math.max(op.min, Math.min(op.max, +e.target.value || 0)); refresh(); } })));
+        if (op.hint) og.append(el("p", { class: "hint" }, op.hint));
+      } else if (op.type === "text") {
+        og.append(el("div", { class: "field" }, el("label", { for: id }, op.label), el("input", { type: "text", id, class: op.mono ? "mono" : "", value: s.o[op.k], spellcheck: "false",
+          oninput: (e) => { s.o[op.k] = e.target.value; refresh(); } })));
+        if (op.hint) og.append(el("p", { class: "hint" }, op.hint));
+      } else if (op.type === "select") {
+        const sl = el("select", { id, onchange: (e) => { s.o[op.k] = e.target.value; refresh(); } });
+        op.choices.forEach(([v, l]) => sl.append(el("option", { value: v, selected: s.o[op.k] === v }, `${l}   (${v})`)));
+        og.append(el("div", { class: "field" }, el("label", { for: id }, op.label), sl));
+      } else if (op.type === "syms") {
+        const grid = el("div", { style: "display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px" });
+        Object.keys(op.def).forEach((k) => grid.append(el("label", { style: "display:grid;gap:2px;font-size:11.5px;color:var(--ink-2)" }, k,
+          el("input", { type: "text", class: "mono", id: `sym-${k}`, value: s.o.syms[k], style: "width:100%;border:1px solid var(--line);background:var(--panel-2);border-radius:6px;padding:4px 6px",
+            oninput: (e) => { s.o.syms[k] = e.target.value; refresh(); } }))));
+        og.append(el("div", { class: "lbl hint" }, op.label), grid);
+      }
+    });
+    box.append(og);
+  }
+}
+
+// ═══════════════ UI: style ═══════════════
+function shapeIcon(key) {
+  const svg = document.createElementNS(NS, "svg"); svg.setAttribute("viewBox", "0 0 46 20"); svg.setAttribute("aria-hidden", "true");
+  const add = (x, w, fill) => { const r = document.createElementNS(NS, "rect"); r.setAttribute("x", x); r.setAttribute("width", w); r.setAttribute("height", 20); r.setAttribute("fill", fill); svg.append(r); };
+  add(0, 18, "var(--ink-2)"); add(28, 18, "var(--accent)");
+  const sh = SHAPES[key];
+  if (sh.close) {
+    const spec = GLYPH_PATH[sh.close];
+    const g = document.createElementNS(NS, "g"); g.setAttribute("transform", "translate(18 0)");
+    const bg = document.createElementNS(NS, "rect"); bg.setAttribute("width", 10); bg.setAttribute("height", 20); bg.setAttribute("fill", "var(--accent)"); g.append(bg);
+    const p = document.createElementNS(NS, "path"); p.setAttribute("d", typeof spec === "string" ? spec : spec.d); p.setAttribute("fill", "var(--ink-2)");
+    if (spec.mirror) p.setAttribute("transform", "matrix(-1 0 0 1 10 0)");
+    g.append(p); svg.append(g);
+  } else add(18, 10, "var(--ink-2)");
+  return svg;
+}
+function shapePicker(key, list) {
+  const box = el("div", { class: "shapes", role: "group" });
+  list.forEach((k) => box.append(el("button", { class: "shape-btn", type: "button", "aria-pressed": String(state[key] === k),
+    onclick: () => { state[key] = k; changed(false); } }, shapeIcon(k), SHAPES[k].name)));
+  return box;
+}
+function segCtl(key, choices, label) {
+  const g = el("span", { class: "seg-ctl", role: "group", "aria-label": label });
+  choices.forEach(([v, l]) => g.append(el("button", { type: "button", "aria-pressed": String(state[key] === v), onclick: () => { state[key] = v; changed(true); } }, l)));
+  return g;
+}
+function toggle(key, label) {
+  return el("label", { class: "toggle" }, el("input", { type: "checkbox", id: "t-" + key, checked: !!state[key], onchange: (e) => { state[key] = e.target.checked; changed(false); } }), label);
+}
+function renderStyle() {
+  const box = document.getElementById("style"); box.replaceChildren();
+  box.append(el("div", { class: "panel-head" }, el("h2", {}, "Style"), el("small", {}, presetName)));
+  const SH = ["none", "sharp", "round", "slant", "backslant", "flame", "pixel"];
+  // shape
+  const g1 = el("div", { class: "group" }, el("div", { class: "eyebrow" }, "Segments"),
+    segCtl("mode", [["powerline", "Powerline"], ["pills", "Capsules"], ["plain", "Plain text"]], "Segment style"));
+  if (state.mode === "powerline") {
+    g1.append(el("div", { class: "hint" }, "Between segments"), shapePicker("sep", SH),
+              el("div", { class: "hint" }, "Screen-edge caps"), shapePicker("edge", SH),
+              el("div", { class: "hint" }, "Inner caps (facing the cursor)"), shapePicker("outer", SH));
+  } else if (state.mode === "pills") {
+    g1.append(el("div", { class: "hint" }, "Capsule ends"), shapePicker("cap", SH.slice(1)));
+  } else {
+    const dl = el("select", { id: "divider", onchange: (e) => { state.divider = e.target.value; changed(false); } });
+    [[" ", "space"], ["  ", "two spaces"], [" · ", "dot  ·"], [" │ ", "bar  │"], [" / ", "slash  /"], [" ❯ ", "chevron  ❯"]]
+      .forEach(([v, l]) => dl.append(el("option", { value: v, selected: state.divider === v }, l)));
+    g1.append(el("div", { class: "field" }, el("label", { for: "divider" }, "Divider"), dl));
+  }
+  g1.append(el("div", { class: "tagline" }, toggle("icons", "Icons"), toggle("bold", "Bold text")));
+  box.append(g1);
+  // layout
+  const g2 = el("div", { class: "group" }, el("div", { class: "eyebrow" }, "Layout"),
+    segCtl("lines", [[1, "One line"], [2, "Two lines"]], "Lines"));
+  if (state.lines === 2) {
+    g2.append(el("div", { class: "field" }, el("span", { class: "lbl" }, "Right prompt"), segCtl("rpos", [["first", "Top line"], ["last", "Input line"]], "Right prompt line")));
+    g2.append(toggle("frame", "Frame  ╭─ ╰─"));
+    if (state.rpos === "first") {
+      const fl = el("select", { id: "fill", onchange: (e) => { state.fill = e.target.value; changed(false); } });
+      [["─", "line  ─"], ["·", "dots  ·"], ["╌", "dashes  ╌"], [" ", "nothing"]].forEach(([v, l]) => fl.append(el("option", { value: v, selected: state.fill === v }, l)));
+      g2.append(el("div", { class: "field" }, el("label", { for: "fill" }, "Gap filler"), fl));
+    }
+  } else g2.append(toggle("charOn", "Prompt character after segments"));
+  g2.append(el("div", { class: "tagline" }, toggle("blank", "Blank line between prompts"), toggle("transient", "Transient prompt")));
+  if (state.transient) g2.append(el("div", { class: "field" }, el("span", { class: "lbl" }, "Collapses to"), segCtl("tstyle", [["char", "❯ only"], ["dir", "path ❯"]], "Transient style")));
+  box.append(g2);
+  // prompt char
+  const charIn = el("input", { type: "text", id: "char", class: "mono", value: state.char, maxlength: 4, style: "max-width:70px", oninput: (e) => { state.char = e.target.value || "❯"; refresh(); } });
+  const quick = el("div", { class: "tagline" });
+  ["❯", "➜", "λ", "$", "%", "▶", "›", "→", ""].forEach((c) => quick.append(el("button", { class: "chip", type: "button", style: "font-family:var(--f-mono)", onclick: () => { state.char = c; charIn.value = c; refresh(); } }, c)));
+  box.append(el("div", { class: "group" }, el("div", { class: "eyebrow" }, "Prompt character"),
+    el("div", { class: "field" }, el("label", { for: "char" }, "Character"), charIn), quick,
+    el("div", { class: "colors" }, colorInput("After success", state.ok, (v) => { state.ok = v; refresh(); }, "c-ok"), colorInput("After failure", state.err, (v) => { state.err = v; refresh(); }, "c-err"))));
+  // terminal + palette
+  const pg = el("div", { class: "palette-grid" });
+  Object.entries(PALETTES).forEach(([k, p]) => pg.append(el("button", { class: "pal-btn", type: "button", title: `Recolor every segment with ${p.name}`,
+    onclick: () => { recolor(state, k); changed(true); toast(`Recolored with ${p.name}`); } },
+    el("span", { class: "pal-sw" }, el("i", { style: `background:${p.term}` }), ...p.seq.slice(0, 6).map((c) => el("i", { style: `background:${c}` }))), p.name)));
+  box.append(el("div", { class: "group" }, el("div", { class: "eyebrow" }, "Palette"), el("p", { class: "hint" }, "Recolors all segments and the preview terminal."), pg,
+    el("div", { class: "colors" },
+      colorInput("Terminal bg", state.term, (v) => { state.term = v; refresh(); }, "c-term"),
+      colorInput("Terminal text", state.text, (v) => { state.text = v; refresh(); }, "c-text"),
+      colorInput("Frame", state.frameColor, (v) => { state.frameColor = v; refresh(); }, "c-frame"),
+      colorInput("Dividers", state.muted, (v) => { state.muted = v; refresh(); }, "c-muted")),
+    el("div", { class: "field" }, el("span", { class: "lbl" }, "Color output"), segCtl("colorMode", [["truecolor", "24-bit"], ["256", "256 colors"]], "Color mode")),
+    el("p", { class: "hint" }, "Use 256 colors if your terminal can't show 24-bit color. iTerm2, Ghostty, WezTerm, Kitty and Warp all can.")));
+}
+
+// ═══════════════ wiring ═══════════════
+let code = "";
+function refresh() {
+  renderTerminal();
+  code = genZsh(state, presetName === "Custom" ? "My prompt" : presetName);
+  document.getElementById("code").innerHTML = highlight(code);
+  document.querySelectorAll(".segrow .swatch").forEach((n, i) => {
+    const s = [...state.left, ...state.right][i]; if (!s) return;
+    if (state.mode === "plain") { n.style.color = s.bg; n.style.background = state.term; } else { n.style.background = s.bg; n.style.color = s.fg; }
+    n.textContent = swatchText(s);
+  });
+  persist();
+}
+function changed(structural) {
+  renderLists(); renderStyle(); if (structural) renderInspector();
+  refresh();
+}
+function renderAll() { renderPresets(); renderScenario(); renderLibrary(); renderLists(); renderInspector(); renderStyle(); refresh(); }
+
+let toastT = 0;
+function toast(msg) { const t = document.getElementById("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1800); }
+async function copyText(text, what) {
+  try { await navigator.clipboard.writeText(text); toast(`${what} copied`); }
+  catch (e) {
+    const r = document.createRange(); r.selectNodeContents(document.getElementById("code"));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("Selected. Press ⌘C to copy");
+  }
+}
+document.getElementById("btn-copy").addEventListener("click", () => copyText(code, "prompt.zsh"));
+document.getElementById("btn-copy-top").addEventListener("click", () => copyText(code, "prompt.zsh"));
+document.getElementById("btn-share").addEventListener("click", () => copyText(JSON.stringify({ presetName, state }), "Design JSON"));
+document.getElementById("btn-load").addEventListener("click", () => { const b = document.getElementById("load-box"); b.hidden = !b.hidden; });
+document.getElementById("load-apply").addEventListener("click", () => {
+  const err = document.getElementById("load-err");
+  try {
+    const d = JSON.parse(document.getElementById("load-text").value);
+    if (!d.state || !Array.isArray(d.state.left)) throw new Error("missing state");
+    state = d.state; presetName = d.presetName || "Custom"; sel = { side: "left", id: state.left[0]?.id };
+    document.getElementById("load-box").hidden = true; err.textContent = ""; renderAll(); toast("Design loaded");
+  } catch (e) { err.textContent = "That isn't a design from this studio. Use “Copy design” to get one."; }
+});
+window.addEventListener("resize", () => renderTerminal());
+// test hook: generate code for every preset
+window.__studio = { genAll: () => PRESETS.map((p) => ({ name: p.name, code: genZsh(p.make(), p.name) })), genZsh, PRESETS, recolor, clone, seg };
+
+renderAll();
+if (document.fonts) document.fonts.ready.then(() => renderTerminal());
+})();
+</script>
