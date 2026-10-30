@@ -3,7 +3,11 @@
 A visual builder for zsh prompts. Arrange segments, pick shapes and colors,
 watch a live terminal preview, then copy a single self-contained `.zsh` file.
 
-Open `prompt-studio.html` in a browser. Nothing to install.
+**[Open the studio →](https://rickfillion.github.io/zsh-prompt-studio/)**
+
+[![Zsh Prompt Studio](assets/screenshot.png)](https://rickfillion.github.io/zsh-prompt-studio/)
+
+It runs entirely in the browser. You can also open `dist/index.html` locally.
 
 ## What it makes
 
@@ -34,8 +38,10 @@ The generated file has no dependencies. Git info comes from a single
 
 ## Building
 
-`prompt-studio.html` is generated from `src/studio.html`. The build inlines a
-subset of Symbols Nerd Font Mono so the preview shows real icons:
+`dist/index.html` is generated from `src/studio.html`; commit it after
+rebuilding. Pushes to `main` publish `dist/` to GitHub Pages
+(`.github/workflows/pages.yml`). The build inlines a subset of Symbols Nerd
+Font Mono so the preview shows real icons:
 
 ```sh
 pip install fonttools brotli

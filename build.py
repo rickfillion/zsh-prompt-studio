@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build prompt-studio.html from src/studio.html.
+"""Build dist/index.html from src/studio.html.
 
 Subsets Symbols Nerd Font Mono down to the glyphs the studio uses and
 inlines it as a base64 woff2, so the preview shows real Nerd Font icons
@@ -18,7 +18,7 @@ from fontTools import subset
 
 ROOT = pathlib.Path(__file__).parent
 SRC = ROOT / "src" / "studio.html"
-OUT = ROOT / "prompt-studio.html"
+OUT = ROOT / "dist" / "index.html"
 
 
 def used_codepoints(text):
@@ -49,8 +49,9 @@ def main():
     subset.save_font(font, buf, opts)
     data = base64.b64encode(buf.getvalue()).decode()
 
+    OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(src.replace("/*NERD_FONT_DATA*/", data), encoding="utf-8")
-    print(f"{len(cps)} glyphs, font {len(buf.getvalue()) // 1024} KB -> {OUT.name}")
+    print(f"{len(cps)} glyphs, font {len(buf.getvalue()) // 1024} KB -> {OUT.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
